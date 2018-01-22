@@ -5,10 +5,7 @@ const Router = require('koa-router')
 const router = new Router()
 const io = require('socket.io')(server)
 const util = require('./util')
-
-router.get('/api', async (ctx, next) => {
-  ctx.body = 'hello world'
-})
+const static = require('koa-static')
 
 var sockets = []
 
@@ -18,13 +15,21 @@ var pointInfo = {} // 保存棋子的信息
 // var conSockets = []
 io.on('connection', function (socket) {
 
+  var url = socket.request.headers.referer
+  if (url.substr(url.lastIndexOf('/') + 1) === 'computer') {
+    socket.emit('computer', 'white')
+    socket.isComputer = true
+    socket.role = 'white'
+  }
+
   // 接收用户消息,发送相应的房间
-  socket.on('play', function (point) {
+  socket.on('play', point => {
     pointInfo[socket.roomID][socket.role].push(`${point.x}/${point.y}`)
     if (util.judge(pointInfo[socket.roomID][socket.role], point)) {
+      socket.emit('winRole', socket.role)
       socket.to(socket.roomID).emit('winRole', socket.role)
     }
-    socket.broadcast.to(socket.roomID).emit('otherPlay', point)
+    socket.to(socket.roomID).emit('otherPlay', point)
   })
 
   socket.on('joinRoom', id => {
@@ -41,7 +46,6 @@ io.on('connection', function (socket) {
     } else {
       socket.role = 'black'
       Rooms[id].push(socket.role)
-
     }
 
     pointInfo[id][socket.role] = []  // 将黑棋，白棋的坐标存放数组初始化
